@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Sudoku Elite</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg-color: #000000;
+            --card-bg: #1c1c1e;
+            --text-color: #ffffff;
+            --primary-color: #0a84ff;
+            --timer-color: #30d158;
+            --error-color: #ff453a;
+        }
+        * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+        html, body { height: 100%; overflow: hidden; background-color: var(--bg-color); margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, system-ui; color: var(--text-color);
+            display: flex; flex-direction: column; align-items: center;
+            padding: env(safe-area-inset-top) 10px env(safe-area-inset-bottom) 10px;
+        }
+
+        .header { display: flex; width: 100%; max-width: 360px; justify-content: space-between; align-items: center; padding: 10px 0; }
+        #timer-box { color: var(--timer-color); font-weight: bold; font-size: 18px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
+        #errors-box { color: var(--error-color); font-size: 14px; font-weight: bold; }
+
+        .difficulty-labels { display: flex; gap: 4px; margin-bottom: 10px; }
+        .btn-ui { background: #2c2c2e; border: none; color: #fff; padding: 6px 12px; border-radius: 8px; font-size: 11px; }
+        .btn-ui.active { background: var(--primary-color); }
+
+        #board-container { position: relative; width: 100%; max-width: 360px; aspect-ratio: 1/1; }
+        #sudoku-board { display: grid; grid-template-columns: repeat(9, 1fr); width: 100%; height: 100%; border: 2px solid white; background: white; gap: 1px; }
+        
+        #overlay { 
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            background: rgba(0,0,0,0.85); display: none; flex-direction: column; 
+            align-items: center; justify-content: center; z-index: 100; text-align: center;
+            border-radius: 2px;
+        }
+
+        .cell { background: var(--card-bg); display: flex; align-items: center; justify-content: center; font-size: 22px; aspect-ratio: 1/1; }
+        .cell.fixed { color: #8e8e93; font-weight: 800; background: #141416; }
+        .cell.selected { background: #26415e !important; }
+        .cell.error-cell { color: var(--error-color); background: rgba(255, 69, 58, 0.1); }
+
+        .cell:nth-child(3n) { border-right: 2px solid white; }
+        .cell:nth-child(9n) { border-right: none; }
+        .cell:nth-child(n+19):nth-child(-n+27), .cell:nth-child(n+46):nth-child(-n+54) { border-bottom: 2px solid white; }
+
+        #keyboard { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; width: 100%; max-width: 360px; margin-top: auto; padding-bottom: 15px; }
+        .key { background: #2c2c2e; color: white; border: none; border-radius: 10px; font-size: 20px; padding: 18px 0; font-weight: 500; }
+        .key:active { background: #3a3a3c; }
+
+        #history-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.95); display: none; z-index: 200;
+            padding: 50px 20px; overflow-y: auto;
+        }
+        .history-item { background: #1c1c1e; padding: 12px; border-radius: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary-color); }
+        #status-msg { height: 25px; color: #ffcc00; font-size: 14px; font-weight: bold; margin: 5px 0; }
+    </style>
+</head>
+<body>
+
+    <div class="header">
+        <div id="timer-box" onclick="togglePause()">
+            <span id="p-icon">⏸</span> <span id="timer">00:00</span>
+        </div>
+        <div id="errors-box">Vidas: <span id="err-count">3</span></div>
+        <button class="btn-ui" style="font-size: 16px;" onclick="showHistory()">📜</button>
+    </div>
+
+    <div class="difficulty-labels">
+        <button class="btn-ui" id="f-btn" onclick="newGame('facil')">Fácil</button>
+        <button class="btn-ui" id="m-btn" onclick="newGame('medio')">Médio</button>
+        <button class="btn-ui" id="d-btn" onclick="newGame('dificil')">Difícil</button>
+    </div>
+
+    <div id="board-container">
+        <div id="overlay">
+            <h1 id="over-txt">PAUSADO</h1>
+            <button class="btn-ui" style="padding: 15px 30px; font-size: 18px; background: var(--primary-color);" onclick="togglePause()">RETOMAR</button>
+        </div>
+        <div id="sudoku-board"></div>
+    </div>
+
+    <div id="status-msg"></div>
+
+    <div id="keyboard">
+        <button class="key" onclick="inputNum(1)">1</button>
+        <button class="key" onclick="inputNum(2)">2</button>
+        <button class="key" onclick="inputNum(3)">3</button>
+        <button class="key" onclick="inputNum(4)">4</button>
+        <button class="key" onclick="inputNum(5)">5</button>
+        <button class="key" onclick="inputNum(6)">6</button>
+        <button class="key" onclick="inputNum(7)">7</button>
+        <button class="key" onclick="inputNum(8)">8</button>
+        <button class="key" onclick="inputNum(9)">9</button>
+        <button class="key" style="background: #3a3a3c" onclick="inputNum(0)">⌫</button>
+    </div>
+
+    <div id="history-modal">
+        <div style="display:flex; justify-content: space-between; align-items:center; margin-bottom: 30px;">
+            <h2 style="margin:0">🏆 Vitórias</h2>
+            <button class="btn-ui" style="background:var(--error-color)" onclick="closeHistory()">Fechar</button>
+        </div>
+        <div id="history-list"></div>
+    </div>
+
+    <script>
+        let solution = [], grid = [], selected = null, errors = 0, seconds = 0, timer = null, paused = false, diff = 'facil';
+
+        function celebrate() {
+            var duration = 3 * 1000;
+            var end = Date.now() + duration;
+
+            (function frame() {
+              confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#0a84ff', '#30d158', '#ff453a'] });
+              confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#0a84ff', '#30d158', '#ff453a'] });
+              if (Date.now() < end) { requestAnimationFrame(frame); }
+            }());
+        }
+
+        function togglePause() {
+            if(document.getElementById('status-msg').textContent.includes("🏆")) return;
+            paused = !paused;
+            document.getElementById('overlay').style.display = paused ? 'flex' : 'none';
+            document.getElementById('sudoku-board').style.filter = paused ? 'blur(15px)' : 'none';
+            if(paused) clearInterval(timer); else startTimer();
+        }
+
+        function isValid(g, r, c, n) {
+            for (let i = 0; i < 9; i++) if (g[r][i] == n || g[i][c] == n) return false;
+            let sR = r - r % 3, sC = c - c % 3;
+            for (let i = 0; i < 3; i++) for (let j = 0; j < 3; j++) if (g[i+sR][j+sC] == n) return false;
+            return true;
+        }
+
+        function solve(g) {
+            for (let r = 0; r < 9; r++) {
+                for (let c = 0; c < 9; c++) {
+                    if (g[r][c] == 0) {
+                        let ns = [1,2,3,4,5,6,7,8,9].sort(() => Math.random() - 0.5);
+                        for (let n of ns) {
+                            if (isValid(g, r, c, n)) {
+                                g[r][c] = n;
+                                if (solve(g)) return true;
+                                g[r][c] = 0;
+                            }
+                        }
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        function newGame(d) {
+            diff = d; errors = 0; seconds = 0; paused = false;
+            document.getElementById('err-count').textContent = "3";
+            document.getElementById('status-msg').textContent = "";
+            document.getElementById('overlay').style.display = 'none';
+            document.getElementById('sudoku-board').style.filter = 'none';
+            document.querySelectorAll('.difficulty-labels .btn-ui').forEach(b => b.classList.remove('active'));
+            document.getElementById(d[0]+'-btn').classList.add('active');
+
+            let g = Array.from({length:9}, () => Array(9).fill(0));
+            solve(g);
+            solution = g.map(r => [...r]);
+            grid = g.map(r => [...r]);
+            let rem = {facil: 32, medio: 45, dificil: 58}[d];
+            while(rem > 0) {
+                let r = Math.floor(Math.random()*9), c = Math.floor(Math.random()*9);
+                if(grid[r][c] != 0) { grid[r][c] = 0; rem--; }
+            }
+            render(); startTimer();
+        }
+
+        function render() {
+            const b = document.getElementById('sudoku-board');
+            b.innerHTML = '';
+            for(let r=0; r<9; r++) {
+                for(let c=0; c<9; c++) {
+                    let d = document.createElement('div');
+                    d.className = 'cell';
+                    if(grid[r][c] != 0) { d.textContent = grid[r][c]; d.classList.add('fixed'); }
+                    else { d.onclick = () => { if(!paused){
+                        document.querySelectorAll('.cell').forEach(x => x.classList.remove('selected'));
+                        d.classList.add('selected'); selected = {r,c,el:d};
+                    }}; }
+                    b.appendChild(d);
+                }
+            }
+        }
+
+        function inputNum(n) {
+            if(!selected || paused) return;
+            if(n == 0) { selected.el.textContent = ''; selected.el.classList.remove('error-cell'); return; }
+            selected.el.textContent = n;
+            if(n != solution[selected.r][selected.c]) {
+                selected.el.classList.add('error-cell');
+                errors++;
+                document.getElementById('err-count').textContent = 3 - errors;
+                if(errors >= 3) { 
+                    setTimeout(() => { alert("Fim de Jogo! Você cometeu 3 erros."); newGame(diff); }, 100);
+                }
+            } else {
+                selected.el.classList.remove('error-cell');
+                checkWin();
+            }
+        }
+
+        function checkWin() {
+            const cells = Array.from(document.querySelectorAll('.cell'));
+            if(cells.every(c => c.textContent != '' && !c.classList.contains('error-cell'))) {
+                clearInterval(timer);
+                document.getElementById('status-msg').textContent = "🏆 VITÓRIA SENSACIONAL!";
+                celebrate();
+                saveHistory();
+                setTimeout(() => { 
+                    if(confirm("Parabéns! Novo jogo?")) newGame(diff);
+                }, 4000);
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timer);
+            timer = setInterval(() => {
+                seconds++;
+                let m = Math.floor(seconds/60).toString().padStart(2,'0');
+                let s = (seconds%60).toString().padStart(2,'0');
+                document.getElementById('timer').textContent = `${m}:${s}`;
+            }, 1000);
+        }
+
+        function saveHistory() {
+            let h = JSON.parse(localStorage.getItem('sudoku_h') || "[]");
+            let agora = new Date();
+            // Formata a data e a hora
+            let dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
+            
+            h.unshift({ d: dataHora, diff: diff, t: document.getElementById('timer').textContent });
+            localStorage.setItem('sudoku_h', JSON.stringify(h.slice(0,15))); // Guarda as últimas 15 vitórias
+        }
+
+        function showHistory() {
+            document.getElementById('history-modal').style.display = 'block';
+            let h = JSON.parse(localStorage.getItem('sudoku_h') || "[]");
+            document.getElementById('history-list').innerHTML = h.map(i => `
+                <div class="history-item">
+                    <span><b>${i.diff.toUpperCase()}</b><br><small>${i.d}</small></span>
+                    <span style="color:var(--timer-color); font-size: 18px; font-weight: bold;">${i.t}</span>
+                </div>
+            `).join('') || "Ainda não há vitórias registradas.";
+        }
+
+        function closeHistory() { document.getElementById('history-modal').style.display = 'none'; }
+
+        window.onload = () => newGame('facil');
+    </script>
+</body>
+</html>
