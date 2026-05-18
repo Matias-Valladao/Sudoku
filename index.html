@@ -36,7 +36,7 @@
         
         #overlay { 
             position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-            background: rgba(0,0,0,0.85); display: none; flex-direction: column; 
+            background: rgba(0,0,0,0.9); display: none; flex-direction: column; 
             align-items: center; justify-content: center; z-index: 100; text-align: center;
             border-radius: 2px;
         }
@@ -61,6 +61,8 @@
         }
         .history-item { background: #1c1c1e; padding: 12px; border-radius: 10px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; border-left: 4px solid var(--primary-color); }
         #status-msg { height: 25px; color: #ffcc00; font-size: 14px; font-weight: bold; margin: 5px 0; }
+        
+        .overlay-btns { display: flex; flex-direction: column; gap: 15px; width: 200px; }
     </style>
 </head>
 <body>
@@ -81,8 +83,11 @@
 
     <div id="board-container">
         <div id="overlay">
-            <h1 id="over-txt">PAUSADO</h1>
-            <button class="btn-ui" style="padding: 15px 30px; font-size: 18px; background: var(--primary-color);" onclick="togglePause()">RETOMAR</button>
+            <h1 id="over-txt" style="margin-bottom: 20px;">PAUSADO</h1>
+            <div class="overlay-btns">
+                <button class="btn-ui" style="padding: 15px; font-size: 16px; background: var(--primary-color); width: 100%;" onclick="togglePause()">RETOMAR</button>
+                <button class="btn-ui" style="padding: 12px; font-size: 14px; background: #3a3a3c; width: 100%;" onclick="restartRound()">REINICIAR RODADA</button>
+            </div>
         </div>
         <div id="sudoku-board"></div>
     </div>
@@ -111,12 +116,11 @@
     </div>
 
     <script>
-        let solution = [], grid = [], selected = null, errors = 0, seconds = 0, timer = null, paused = false, diff = 'facil';
+        let solution = [], grid = [], initialGridState = [], selected = null, errors = 0, seconds = 0, timer = null, paused = false, diff = 'facil';
 
         function celebrate() {
             var duration = 3 * 1000;
             var end = Date.now() + duration;
-
             (function frame() {
               confetti({ particleCount: 3, angle: 60, spread: 55, origin: { x: 0 }, colors: ['#0a84ff', '#30d158', '#ff453a'] });
               confetti({ particleCount: 3, angle: 120, spread: 55, origin: { x: 1 }, colors: ['#0a84ff', '#30d158', '#ff453a'] });
@@ -130,6 +134,16 @@
             document.getElementById('overlay').style.display = paused ? 'flex' : 'none';
             document.getElementById('sudoku-board').style.filter = paused ? 'blur(15px)' : 'none';
             if(paused) clearInterval(timer); else startTimer();
+        }
+
+        function restartRound() {
+            if(!confirm("Deseja reiniciar esta rodada do zero?")) return;
+            grid = initialGridState.map(r => [...r]);
+            errors = 0;
+            seconds = 0;
+            document.getElementById('err-count').textContent = "3";
+            render();
+            togglePause(); // Retoma o jogo automaticamente
         }
 
         function isValid(g, r, c, n) {
@@ -176,6 +190,8 @@
                 let r = Math.floor(Math.random()*9), c = Math.floor(Math.random()*9);
                 if(grid[r][c] != 0) { grid[r][c] = 0; rem--; }
             }
+            // SALVA O ESTADO INICIAL PARA O RESTART
+            initialGridState = grid.map(r => [...r]);
             render(); startTimer();
         }
 
@@ -239,11 +255,9 @@
         function saveHistory() {
             let h = JSON.parse(localStorage.getItem('sudoku_h') || "[]");
             let agora = new Date();
-            // Formata a data e a hora
             let dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-            
             h.unshift({ d: dataHora, diff: diff, t: document.getElementById('timer').textContent });
-            localStorage.setItem('sudoku_h', JSON.stringify(h.slice(0,15))); // Guarda as últimas 15 vitórias
+            localStorage.setItem('sudoku_h', JSON.stringify(h.slice(0,15)));
         }
 
         function showHistory() {
