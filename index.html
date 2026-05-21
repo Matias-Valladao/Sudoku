@@ -99,7 +99,7 @@
         <div id="timer-box" onclick="togglePause()">
             <span id="p-icon">⏸</span> <span id="timer">00:00</span>
         </div>
-        <div id="errors-box">Vidas: <span id="err-count">3</span></div>
+        <div id="errors-box">Erros: <span id="err-count">0/3</span></div>
         <div class="right-actions">
             <button class="btn-ui" style="font-size: 16px; padding: 4px 10px;" onclick="showHistory()">📜</button>
             <button class="btn-ui" id="theme-btn" style="font-size: 16px; padding: 4px 10px;" onclick="toggleTheme()">☀️</button>
@@ -149,7 +149,6 @@
     <script>
         let solution = [], grid = [], initialGridState = [], selected = null, errors = 0, seconds = 0, timer = null, paused = false, diff = 'facil';
 
-        // SISTEMA DE TEMA CLARO/ESCURO
         function toggleTheme() {
             const body = document.body;
             body.classList.toggle('light-mode');
@@ -181,7 +180,7 @@
             grid = initialGridState.map(r => [...r]);
             errors = 0;
             seconds = 0;
-            document.getElementById('err-count').textContent = "3";
+            document.getElementById('err-count').textContent = "0/3";
             render();
             togglePause(); 
         }
@@ -214,7 +213,7 @@
 
         function newGame(d) {
             diff = d; errors = 0; seconds = 0; paused = false;
-            document.getElementById('err-count').textContent = "3";
+            document.getElementById('err-count').textContent = "0/3";
             document.getElementById('status-msg').textContent = "";
             document.getElementById('overlay').style.display = 'none';
             document.getElementById('sudoku-board').style.filter = 'none';
@@ -258,9 +257,9 @@
             if(n != solution[selected.r][selected.c]) {
                 selected.el.classList.add('error-cell');
                 errors++;
-                document.getElementById('err-count').textContent = 3 - errors;
+                document.getElementById('err-count').textContent = `${errors}/3`;
                 if(errors >= 3) { 
-                    setTimeout(() => { alert("Fim de Jogo! Você cometeu 3 erros."); newGame(diff); }, 100);
+                    setTimeout(() => { alert("Fim de Jogo! Você atingiu o limite de erros."); newGame(diff); }, 100);
                 }
             } else {
                 selected.el.classList.remove('error-cell');
@@ -295,7 +294,7 @@
             let h = JSON.parse(localStorage.getItem('sudoku_h') || "[]");
             let agora = new Date();
             let dataHora = agora.toLocaleDateString('pt-BR') + ' às ' + agora.toLocaleTimeString('pt-BR', {hour: '2-digit', minute:'2-digit'});
-            h.unshift({ d: dataHora, diff: diff, t: document.getElementById('timer').textContent });
+            h.unshift({ d: dataHora, diff: diff, t: document.getElementById('timer').textContent, e: errors });
             localStorage.setItem('sudoku_h', JSON.stringify(h.slice(0,15)));
         }
 
@@ -304,7 +303,10 @@
             let h = JSON.parse(localStorage.getItem('sudoku_h') || "[]");
             document.getElementById('history-list').innerHTML = h.map(i => `
                 <div class="history-item">
-                    <span><b>${i.diff.toUpperCase()}</b><br><small>${i.d}</small></span>
+                    <span>
+                        <b>${i.diff.toUpperCase()}</b> (❌ ${i.e !== undefined ? i.e : 0}/3)<br>
+                        <small>${i.d}</small>
+                    </span>
                     <span style="color:var(--timer-color); font-size: 18px; font-weight: bold;">${i.t}</span>
                 </div>
             `).join('') || "Ainda não há vitórias registradas.";
@@ -312,7 +314,6 @@
 
         function closeHistory() { document.getElementById('history-modal').style.display = 'none'; }
 
-        // Inicializa o jogo e checa o tema salvo
         window.onload = () => {
             if(localStorage.getItem('sudoku_theme') === 'light') {
                 document.body.classList.add('light-mode');
